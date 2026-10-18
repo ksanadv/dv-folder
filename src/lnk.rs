@@ -219,7 +219,10 @@ mod tests {
     /// a shortcut made by Windows (WScript.Shell, which writes it through IShellLink) reads back to its target
     #[test]
     fn reads_what_windows_wrote() {
-        let dir = std::env::temp_dir().join(format!("dvfiles_lnk_{}", std::process::id()));
+        // the long form of the temp folder, which is what Windows stores: TEMP can be an 8.3 name ("RUNNER~1")
+        let temp = std::fs::canonicalize(std::env::temp_dir()).unwrap();
+        let temp = std::path::PathBuf::from(temp.to_str().unwrap().trim_start_matches(r"\\?\"));
+        let dir = temp.join(format!("dvfiles_lnk_{}", std::process::id()));
         // (Windows writes a relative path in the ANSI code page, so a name outside it is left to the shell)
         let target_dir = dir.join("Target folder");
         std::fs::create_dir_all(&target_dir).unwrap();
