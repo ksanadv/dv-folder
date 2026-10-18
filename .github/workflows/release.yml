@@ -60,7 +60,14 @@ jobs:
 
       - name: Test
         if: steps.version.outputs.needed == 'true'
-        run: cargo test --release
+        run: |
+          # a failing test is named in an annotation on the run's page, which can be read without signing in
+          cargo test --release --no-fail-fast 2>&1 | Tee-Object -FilePath test.log
+          if ($LASTEXITCODE) {
+            Select-String -Path test.log -Pattern "panicked at|^test .* FAILED" -Context 0,2 |
+              Select-Object -First 10 | ForEach-Object { "::error::" + ($_.ToString() -replace "`r?`n", ' | ') }
+            exit 1
+          }
 
       - name: Build the setup program
         if: steps.version.outputs.needed == 'true'
