@@ -123,10 +123,9 @@ fn main() {
     }
     let product = dv_setup::Product {
         name: "dvfiles",
-        version: VERSION,
         about: "A fast file manager for Windows",
         location: install::install_dir(),
-        installed,
+        scope: dv_setup::Scope::App { version: VERSION, installed },
         choices: choices(current),
         done,
         launch: Some("Open dvfiles now".into()),

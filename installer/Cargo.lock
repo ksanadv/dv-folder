@@ -20,8 +20,8 @@ checksum = "4e7648175b45a9a48536d676f68d918270699102aa8dab5496df06904c914600"
 
 [[package]]
 name = "dv-setup"
-version = "0.1.0"
-source = "git+https://github.com/ksanadv/dv-setup?tag=v0.1.0#02ce250ee1d8a6b003d558e6cf8a2643045cde85"
+version = "0.2.0"
+source = "git+https://github.com/ksanadv/dv-setup?tag=v0.2.0#cbaa940956012695e5921093c3070e2bab801a10"
 dependencies = [
  "windows",
  "winreg",
