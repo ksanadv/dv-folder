@@ -1,0 +1,84 @@
+# Publishes a GitHub release by itself: whenever main has a version in Cargo.toml that has no release yet, this builds,
+# tests and releases it, creating the tag v<version> on that commit. To release, bump the version (`.\release.ps1 -Bump
+# 0.2.0`), merge that change, and wait. Pushes that leave the version unchanged finish in seconds without building.
+# Run it by hand from the Actions tab to retry a release that failed.
+name: Release
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  # .cargo/config.toml is not in the repo (it holds a machine path), so ask for the static CRT here; build-installer.ps1
+  # fails the build if the exes still import the Visual C++ runtime
+  RUSTFLAGS: -C target-feature=+crt-static
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Is this version already released?
+        id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $pattern = '^version\s*=\s*"([^"]+)"'
+          $versions = foreach ($f in 'Cargo.toml', 'installer/Cargo.toml') {
+            (Select-String -Path $f -Pattern $pattern | Select-Object -First 1).Matches.Groups[1].Value
+          }
+          if ($versions[0] -ne $versions[1]) { throw "Cargo.toml says $($versions[0]) but installer/Cargo.toml says $($versions[1])" }
+          $tag = "v$($versions[0])"
+          $ErrorActionPreference = 'Continue'   # gh writes its "not found" message to stderr
+          $out = gh release view $tag 2>&1 | Out-String
+          $released = ($LASTEXITCODE -eq 0)
+          $ErrorActionPreference = 'Stop'
+          # only "release not found" means there is none; any other failure (network, permissions) must stop the job
+          if (-not $released -and $out -notmatch 'release not found') { throw "gh release view failed: $out" }
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          "needed=$(if ($released) { 'false' } else { 'true' })" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          if ($released) { "$tag is already released; nothing to do." } else { "$tag has no release yet; building it." }
+          $global:LASTEXITCODE = 0   # the failed `gh release view` above must not fail this step
+
+      - name: Install Rust
+        if: steps.version.outputs.needed == 'true'
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+
+      - name: Test
+        if: steps.version.outputs.needed == 'true'
+        run: cargo test --release
+
+      - name: Build the setup program
+        if: steps.version.outputs.needed == 'true'
+        run: ./build-installer.ps1
+
+      - name: Publish the release
+        if: steps.version.outputs.needed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.version.outputs.tag }}'
+          # build-installer.ps1 left dvfiles-<version>-windows-x64-setup.exe, -portable.exe and -cli.exe in dist
+          $files = Get-ChildItem dist\dvfiles-*.exe
+          if ($files.Count -ne 3) { throw "expected 3 files in dist, found $($files.Name)" }
+          foreach ($f in $files) {
+            $hash = (Get-FileHash $f.FullName -Algorithm SHA256).Hash.ToLower()
+            [IO.File]::WriteAllText("$($f.FullName).sha256", "$hash  $($f.Name)`n")
+          }
+          # creates the tag on this commit; the install text from release-notes.md, then GitHub's list of changes
+          gh release create $tag --target '${{ github.sha }}' --title "dvfiles $($tag.TrimStart('v'))" `
+            --notes-file .github/release-notes.md --generate-notes (Get-ChildItem dist\dvfiles-*).FullName
