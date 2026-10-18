@@ -1,0 +1,9 @@
+# Copy to .cargo/config.toml (which is git-ignored) and set target-dir for your machine.
+# Never commit the real file: target-dir is a path under your home folder.
+[build]
+# keeps build output out of OneDrive/synced folders
+target-dir = "C:/Users/<you>/.cargo-target/dvfiles"
+
+[target.x86_64-pc-windows-msvc]
+# static CRT: no Visual C++ runtime needed on the target machine
+rustflags = ["-C", "target-feature=+crt-static"]

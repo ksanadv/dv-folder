@@ -1,0 +1,30 @@
+[package]
+name = "dvfiles-setup"
+version = "0.1.0"
+edition = "2021"
+license = "GPL-3.0-or-later"
+description = "Installer for dvfiles"
+
+[workspace]
+
+[dependencies]
+dv-setup = { git = "https://github.com/ksanadv/dv-setup", tag = "v0.1.0" }
+winreg = "0.56.0"
+windows = { version = "0.62", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_Com",
+    "Win32_System_SystemInformation",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+embed-resource = "3.0.12"
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true
+panic = "abort"
+codegen-units = 1
